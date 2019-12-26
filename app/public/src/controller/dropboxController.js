@@ -34,14 +34,34 @@ class DropboxController {
 
         this.inputFilesEl.addEventListener('change', event => {
 
-            this.uploadTask(event.target.files)
+            this.btnSendFileEl.disabled = true;
+
+            this.uploadTask(event.target.files).then(responses => {
+                responses.forEach(res => {
+                    this.getFirebaseRef().push().set(res.files['input-file'])
+                })
+                this.uploadComplete()
+
+            }).catch(err => {
+                this.uploadComplete()
+                console.error(err)
+            })
 
             this.modalShow()
-
-            this.inputFilesEl.value = '';
         })
 
     }
+    uploadComplete() {
+        this.modalShow(false)
+        this.inputFilesEl.value = '';
+        this.btnSendFileEl.disabled = false;
+    }
+
+
+    getFirebaseRef() {
+        return firebase.database().ref('files')
+    }
+
     modalShow(show = true) {
         this.snackModalEl.style.display = (show) ? 'block' : 'none';
     }
@@ -58,7 +78,7 @@ class DropboxController {
 
                 ajax.onload = event => {
 
-                    this.modalShow(false)
+
                     try {
                         resolve(JSON.parse(ajax.responseText));
                     } catch (e) {
@@ -66,7 +86,7 @@ class DropboxController {
                     }
                 }
                 ajax.onerror = event => {
-                    this.modalShow(false)
+
                     reject(event);
                 };
 
