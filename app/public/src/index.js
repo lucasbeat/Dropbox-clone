@@ -1,1 +1,1 @@
-window.app = new DropboxController
+window.app = new DropboxController()
