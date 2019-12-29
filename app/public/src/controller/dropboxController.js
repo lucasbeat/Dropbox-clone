@@ -326,6 +326,8 @@ class DropboxController {
   
         `;
 
+        this.initEventsLi(li)
+
         return li;
     }
 
@@ -343,4 +345,11 @@ class DropboxController {
             })
         })
     }
+
+    initEventsLi(li) {
+        li.addEventListener('click', e => {
+            li.classList.toggle('selected')
+        })
+    }
+
 }
