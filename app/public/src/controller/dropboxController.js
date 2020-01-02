@@ -9,6 +9,10 @@ class DropboxController {
         this.timeLeftEl = this.snackModalEl.querySelector('.timeleft')
         this.listFilesEl = document.querySelector('#list-of-files-and-directories')
 
+        this.btnNewFolder = document.querySelector('#btn-new-folder')
+        this.btnRename = document.querySelector('#btn-rename')
+        this.btnDelete = document.querySelector('#btn-delete')
+
         this.connectFirebase()
         this.initEvents()
         this.readFiles()
@@ -30,10 +34,48 @@ class DropboxController {
         firebase.analytics();
     }
 
+    getSelection() {
+
+        return this.listFilesEl.querySelectorAll('.selected')
+    }
+
     initEvents() {
 
+        this.btnRename.addEventListener('click', e => {
+            let li = this.getSelection()[0]
+
+            let file = JSON.parse(li.dataset.file)
+
+            let name = prompt("Renomear o arquivo", file.name)
+
+            if (name) {
+
+                file.name = name
+
+                this.getFirebaseRef().child(li.dataset.key).set(file)
+            }
+        })
+
         this.listFilesEl.addEventListener('selectionchange', e => {
-            console.log('selectionchange')
+            switch (this.getSelection().length) {
+                case 0:
+                    this.btnDelete.style.display = 'none'
+                    this.btnRename.style.display = 'none'
+
+                    break
+
+                case 1:
+                    this.btnDelete.style.display = 'block'
+                    this.btnRename.style.display = 'block'
+
+                    break
+
+                default:
+                    this.btnDelete.style.display = 'block'
+                    this.btnRename.style.display = 'none'
+            }
+
+
         })
 
         this.btnSendFileEl.addEventListener('click', event => {
@@ -326,6 +368,8 @@ class DropboxController {
         let li = document.createElement('li')
 
         li.dataset.key = key
+        li.dataset.file = JSON.stringify(file)
+
         li.innerHTML = `
                 ${this.getFileIconView(file)}                         
                 <div class="name text-center">${file.name}</div>
@@ -355,8 +399,6 @@ class DropboxController {
     initEventsLi(li) {
         li.addEventListener('click', e => {
 
-            this.listFilesEl.dispatchEvent(this.onselectionchange)
-
             if (e.shiftKey) {
                 let firstLi = this.listFilesEl.querySelector('li.selected')
 
@@ -377,6 +419,8 @@ class DropboxController {
                             el.classList.add('selected')
                         }
                     })
+                    this.listFilesEl.dispatchEvent(this.onselectionchange)
+
                     return true;
                 }
             }
@@ -388,6 +432,8 @@ class DropboxController {
             }
 
             li.classList.toggle('selected');
+
+            this.listFilesEl.dispatchEvent(this.onselectionchange)
         })
     }
 
