@@ -1,5 +1,6 @@
 class DropboxController {
     constructor() {
+
         this.currentFolder = ['Home']
 
         this.onselectionchange = new Event('selectionchange')
@@ -21,8 +22,6 @@ class DropboxController {
         this.openFolder()
     }
     connectFirebase() {
-        // Your web app's Firebase configuration
-        // Your web app's Firebase configuration
         var firebaseConfig = {
             apiKey: "AIzaSyBXOwoAMUY1xbWG0dDHSUjLuHVCiryWk4k",
             authDomain: "dropbox-clone-277ee.firebaseapp.com",
@@ -32,15 +31,74 @@ class DropboxController {
             messagingSenderId: "261893073265",
             appId: "1:261893073265:web:32805f32a68862b5756ed0",
             measurementId: "G-5R9WY5R5Y8"
-        };
+        }
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
-        firebase.analytics();
     }
 
     getSelection() {
 
         return this.listFilesEl.querySelectorAll('.selected')
+    }
+
+    removeFolderTask(ref, name, key) {
+
+        return new Promise((resolve, reject) => {
+
+            let folderRef = this.getFirebaseRef(ref + '/' + name)
+
+            folderRef.on('value', snapshot => {
+
+                folderRef.off('value')
+
+                if (snapshot.exists()) {
+
+                    snapshot.forEach(item => {
+
+                        let data = item.val()
+                        data.key = item.key
+
+                        if (data.type === 'folder') {
+
+                            this.removeFolderTask(ref + '/' + name, data.name).then((resolve, reject) => {
+
+                                resolve({
+                                    fields: {
+                                        key: data.key
+                                    }
+                                })
+
+                            }).catch(err => {
+                                reject(err)
+                            })
+
+                        } else if (data.type) {
+                            this.removeFile(ref + '/' + name, data.name).then((resolve, reject) => {
+
+                                resolve({
+                                    fields: {
+                                        key: data.key
+                                    }
+                                })
+
+                            }).catch(err => {
+                                reject(err)
+                            })
+                        }
+                    })
+
+                    folderRef.remove()
+                } else {
+
+                    this.getFirebaseRef('Home').child(key).remove();
+
+                }
+            }
+
+            )
+
+        })
+
     }
 
     removeTask() {
@@ -52,14 +110,42 @@ class DropboxController {
             let file = JSON.parse(li.dataset.file)
             let key = li.dataset.key
 
-            let formData = new FormData()
+            promises.push(new Promise((resolve, reject) => {
 
-            formData.append('path', file.path)
-            formData.append('key', key)
+                if (file.type === 'folder') {
+                    this.removeFile(this.currentFolder.join('/'), file.name).then(() => {
+                        resolve({
+                            fields: {
+                                key
+                            }
+                        })
 
-            promises.push(this.ajax('/file', 'DELETE', formData))
+                    }
+                    )
+
+                } else if (file.type) {
+
+                    this.removeFile(this.currentFolder.join('/'), file.name).then(() => {
+                        resolve({
+                            fields: {
+                                key
+                            }
+                        })
+
+                    }
+                    )
+                }
+            }))
         })
         return Promise.all(promises)
+    }
+
+
+    removeFile(ref, name) {
+
+        let fileRef = firebase.storage().ref(ref).child(name)
+
+        return fileRef.delete()
 
     }
 
@@ -141,9 +227,16 @@ class DropboxController {
             this.btnSendFileEl.disabled = true;
 
             this.uploadTask(event.target.files).then(responses => {
-                responses.forEach(res => {
-                    this.getFirebaseRef().push().set(res.files['input-file'])
+
+                responses.forEach(resp => {
+                    this.getFirebaseRef().push().set({
+                        name: resp.name,
+                        type: resp.contentType,
+                        path: resp.customMetadata.downloadURL,
+                        size: resp.size
+                    })
                 })
+
                 this.uploadComplete()
 
             }).catch(err => {
@@ -209,16 +302,42 @@ class DropboxController {
 
         [...files].forEach(file => {
 
-            let formData = new FormData()
+            promises.push(new Promise((resolve, reject) => {
 
-            formData.append('input-file', file)
-            promises.push(this.ajax('/upload', 'POST', formData, () => {
-                this.uploadProgress(event, file)
 
-            }, () => {
-                this.startUploadTime = Date.now()
-            })
-            )
+                let fileRef = firebase.storage().ref(this.currentFolder.join('/')).child(file.name)
+
+                let task = fileRef.put(file)
+
+                task.on('state_changed', snapshot => {
+
+                    this.uploadProgress({
+
+                        loaded: snapshot.bytesTransferred,
+                        total: snapshot.totalBytes
+
+                    }, file)
+
+                }, error => {
+
+                    console.error(error)
+                    reject(error)
+                }, () => {
+
+                    task.snapshot.ref.getDownloadURL().then(downloadURL => {
+                        task.snapshot.ref.updateMetadata({ customMetadata: { downloadURL } }).then(metadata => {
+                            resolve(metadata)
+                        })
+
+
+                    }).catch(error => {
+                        console.error('Error update metadata:', error)
+                        reject(error)
+                    })
+
+                })
+            }))
+
         })
 
         return Promise.all(promises)
